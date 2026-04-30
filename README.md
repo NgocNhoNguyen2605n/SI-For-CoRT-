@@ -68,39 +68,10 @@ CORT_SI/
 
 ## Quick Start
 
-```python
-import numpy as np
-from cort_si import SI, gen_data
+Start from the example notebooks in `examples/`:
 
-np.random.seed(0)
-XS_list, YS_list, X0, Y0, _, SigmaS_list, Sigma0, _ = gen_data.generate_data(
-    p=5,
-    s=2,
-    nS=6,
-    nT=7,
-    true_beta=1.0,
-    num_info_aux=1,
-    num_uninfo_aux=1,
-    gamma=0.05,
-)
-
-p_values = SI(
-    X0,
-    Y0,
-    XS_list,
-    YS_list,
-    lambda_sel=0.05,
-    lambda0=0.05,
-    lambdak_list=[0.05] * len(XS_list),
-    SigmaS_list=SigmaS_list,
-    Sigma0=Sigma0,
-    T=3,
-    z_min=-5,
-    z_max=5,
-)
-
-print(p_values)
-```
+- `examples/ex1_p_value_CORT.ipynb` computes selective p-values for the selected target features and includes a random-feature example with `SI_randj(...)`.
+- `examples/ex2_pivot_CORT.ipynb` runs a null-model pivot uniformity check for Adaptive CoRT-SI.
 
 ## Examples
 
