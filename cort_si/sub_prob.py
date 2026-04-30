@@ -111,7 +111,7 @@ def kkt_interval(X_tilde, a_adapt, b_adapt, theta_hat, w_tilde, p, tol=1e-10):
     theta_hat = np.asarray(theta_hat, dtype=float).ravel()
     w_tilde = np.asarray(w_tilde, dtype=float).reshape(-1, 1)
 
-    active_set = [idx for idx, value in enumerate(theta_hat) if abs(value) > tol]
+    active_set = [idx for idx, value in enumerate(theta_hat) if value != 0]
     inactive_set = [idx for idx in range(X_tilde.shape[1]) if idx not in active_set]
     sign_vec = np.sign(theta_hat[active_set]).reshape(-1, 1) if active_set else np.zeros((0, 1))
 

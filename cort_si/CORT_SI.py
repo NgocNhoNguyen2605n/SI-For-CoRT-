@@ -10,7 +10,7 @@ except ImportError:  # pragma: no cover - fallback for direct script execution
     import utils
 
 
-def SI(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS_list, Sigma0, folds=None, T=5, z_min=-20, z_max=20):
+def SI(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS_list, Sigma0, folds=None, T=5, z_min=-20, z_max=20, verbose=False):
     if len(XS_list) != len(YS_list):
         raise ValueError("XS_list and YS_list must have the same length")
     if len(lambdak_list) != len(XS_list):
@@ -21,9 +21,23 @@ def SI(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS_list,
     if len(folds) % 2 == 0:
         raise ValueError("The number of folds T must be odd")
 
-    I_obs = algorithms.adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel)
-    _, beta0_hat, _, _ = algorithms.solve_cort_model(X0, Y0, XS_list, YS_list, I_obs, lambda0, lambdak_list)
-    M_obs = [idx for idx, value in enumerate(beta0_hat) if abs(value) > 1e-10]
+    I_obs = algorithms.adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel, verbose=verbose)
+    _, beta0_hat, _, _ = algorithms.solve_cort_model(
+        X0,
+        Y0,
+        XS_list,
+        YS_list,
+        I_obs,
+        lambda0,
+        lambdak_list,
+        verbose=verbose,
+        label="Observed CoRT fit",
+    )
+    M_obs = [idx for idx, value in enumerate(beta0_hat) if value != 0]
+
+    if verbose:
+        print(f"observed informative source set = {I_obs}")
+        print(f"observed target active set = {M_obs}")
 
     if not M_obs:
         return None
@@ -50,7 +64,7 @@ def SI(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS_list,
     return p_values
 
 
-def SI_randj(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS_list, Sigma0, folds=None, T=5, z_min=-20, z_max=20):
+def SI_randj(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS_list, Sigma0, folds=None, T=5, z_min=-20, z_max=20, verbose=False):
     if len(XS_list) != len(YS_list):
         raise ValueError("XS_list and YS_list must have the same length")
     if len(lambdak_list) != len(XS_list):
@@ -61,9 +75,23 @@ def SI_randj(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS
     if len(folds) % 2 == 0:
         raise ValueError("The number of folds T must be odd")
 
-    I_obs = algorithms.adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel)
-    _, beta0_hat, _, _ = algorithms.solve_cort_model(X0, Y0, XS_list, YS_list, I_obs, lambda0, lambdak_list)
-    M_obs = [idx for idx, value in enumerate(beta0_hat) if abs(value) > 1e-10]
+    I_obs = algorithms.adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel, verbose=verbose)
+    _, beta0_hat, _, _ = algorithms.solve_cort_model(
+        X0,
+        Y0,
+        XS_list,
+        YS_list,
+        I_obs,
+        lambda0,
+        lambdak_list,
+        verbose=verbose,
+        label="Observed CoRT fit",
+    )
+    M_obs = [idx for idx, value in enumerate(beta0_hat) if value != 0]
+
+    if verbose:
+        print(f"observed informative source set = {I_obs}")
+        print(f"observed target active set = {M_obs}")
 
     if not M_obs:
         return None
