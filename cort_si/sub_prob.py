@@ -3,10 +3,10 @@ from numpy.linalg import pinv
 
 try:
     from . import utils
-    from . import transfer_learning_hdr
+    from . import algorithms
 except ImportError:
     import utils
-    import transfer_learning_hdr
+    import algorithms
 
 
 def lasso_state_interval(X_train, a_train, b_train, active_set, sign_vec, lambda_sel, n_samples):
@@ -89,13 +89,18 @@ def validation_quadratic(X0_val, a0_val, b0_val, c0, d0, ck, dk, n_val):
     residualk_a = a0_val - X0_val @ ck
     residualk_b = b0_val - X0_val @ dk
 
-    A0 = 0.5 * float(residual0_b.T @ residual0_b) / n_val
-    B0 = float(residual0_a.T @ residual0_b) / n_val
-    C0 = 0.5 * float(residual0_a.T @ residual0_a) / n_val
+    residual0_a = residual0_a.ravel()
+    residual0_b = residual0_b.ravel()
+    residualk_a = residualk_a.ravel()
+    residualk_b = residualk_b.ravel()
 
-    Ak = 0.5 * float(residualk_b.T @ residualk_b) / n_val
-    Bk = float(residualk_a.T @ residualk_b) / n_val
-    Ck = 0.5 * float(residualk_a.T @ residualk_a) / n_val
+    A0 = 0.5 * float(np.dot(residual0_b, residual0_b)) / n_val
+    B0 = float(np.dot(residual0_a, residual0_b)) / n_val
+    C0 = 0.5 * float(np.dot(residual0_a, residual0_a)) / n_val
+
+    Ak = 0.5 * float(np.dot(residualk_b, residualk_b)) / n_val
+    Bk = float(np.dot(residualk_a, residualk_b)) / n_val
+    Ck = 0.5 * float(np.dot(residualk_a, residualk_a)) / n_val
 
     return Ak - A0, Bk - B0, Ck - C0
 
@@ -182,7 +187,7 @@ def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds,
     z = z_min
     while z < z_max:
         y0_train = a0_train + (b0_train * z)
-        beta_target = transfer_learning_hdr.solve_lasso(X0_train, y0_train, lambda_sel)
+        beta_target = algorithms.solve_lasso(X0_train, y0_train, lambda_sel)
         _, active_target, sign_target, _ = utils.construct_betaM_M_SM_Mc(beta_target)
         _, _, c0, d0, target_interval = target_fold_state_interval(
             X0_train,
@@ -195,7 +200,7 @@ def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds,
         )
 
         y_aug_train = a_aug_train + (b_aug_train * z)
-        beta_aug = transfer_learning_hdr.solve_lasso(X_aug_train, y_aug_train, lambda_sel)
+        beta_aug = algorithms.solve_lasso(X_aug_train, y_aug_train, lambda_sel)
         _, active_aug, sign_aug, _ = utils.construct_betaM_M_SM_Mc(beta_aug)
         _, _, ck, dk, aug_interval = augmented_fold_state_interval(
             X_aug_train,
@@ -288,7 +293,7 @@ def model_selection_region(X0, Y0, XS_list, YS_list, a, b, I_obs, M_obs, lambda0
     while z < z_max:
         Y0_z = target_a + (target_b * z)
         YS_z = [source_a_blocks[idx] + (source_b_blocks[idx] * z) for idx in range(len(XS_list))]
-        theta_hat, beta0_hat, X_tilde, w_tilde = transfer_learning_hdr.solve_cort_model(
+        theta_hat, beta0_hat, X_tilde, w_tilde = algorithms.solve_cort_model(
             X0,
             Y0_z,
             XS_list,

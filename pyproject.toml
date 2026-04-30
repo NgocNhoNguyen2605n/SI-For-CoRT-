@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cort-si"
+version = "0.1.0"
+description = "Selective inference for Adaptive CoRT in high-dimensional regression"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "scipy",
+    "mpmath",
+    "skglm",
+    "matplotlib",
+    "statsmodels",
+]
+
+[tool.setuptools.packages.find]
+include = ["cort_si*"]

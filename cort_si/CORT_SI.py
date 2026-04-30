@@ -2,11 +2,11 @@ import random
 
 try:
     from . import sub_prob
-    from . import transfer_learning_hdr
+    from . import algorithms
     from . import utils
 except ImportError:  # pragma: no cover - fallback for direct script execution
     import sub_prob
-    import transfer_learning_hdr
+    import algorithms
     import utils
 
 
@@ -21,8 +21,8 @@ def SI(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS_list,
     if len(folds) % 2 == 0:
         raise ValueError("The number of folds T must be odd")
 
-    I_obs = transfer_learning_hdr.adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel)
-    _, beta0_hat, _, _ = transfer_learning_hdr.solve_cort_model(X0, Y0, XS_list, YS_list, I_obs, lambda0, lambdak_list)
+    I_obs = algorithms.adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel)
+    _, beta0_hat, _, _ = algorithms.solve_cort_model(X0, Y0, XS_list, YS_list, I_obs, lambda0, lambdak_list)
     M_obs = [idx for idx, value in enumerate(beta0_hat) if abs(value) > 1e-10]
 
     if not M_obs:
@@ -61,8 +61,8 @@ def SI_randj(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS
     if len(folds) % 2 == 0:
         raise ValueError("The number of folds T must be odd")
 
-    I_obs = transfer_learning_hdr.adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel)
-    _, beta0_hat, _, _ = transfer_learning_hdr.solve_cort_model(X0, Y0, XS_list, YS_list, I_obs, lambda0, lambdak_list)
+    I_obs = algorithms.adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel)
+    _, beta0_hat, _, _ = algorithms.solve_cort_model(X0, Y0, XS_list, YS_list, I_obs, lambda0, lambdak_list)
     M_obs = [idx for idx, value in enumerate(beta0_hat) if abs(value) > 1e-10]
 
     if not M_obs:
