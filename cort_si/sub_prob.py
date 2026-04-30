@@ -156,7 +156,7 @@ def kkt_interval(X_tilde, a_adapt, b_adapt, theta_hat, w_tilde, p, tol=1e-10):
     return interval, target_active
 
 
-def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds, lambda_sel, z_min, z_max, eps=1e-4, tol=1e-10):
+def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds, lambda_sel, z_min, z_max, eps=1e-5, tol=1e-10):
     ns_list = [ys.shape[0] for ys in YS_list]
     source_a_blocks, target_a = utils.split_stacked_response(a, ns_list, Y0.shape[0])
     source_b_blocks, target_b = utils.split_stacked_response(b, ns_list, Y0.shape[0])
@@ -230,7 +230,7 @@ def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds,
     return utils.clip_interval_union(intervals, z_min, z_max, tol=tol)
 
 
-def source_selection_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_min, z_max, eps=1e-4, tol=1e-10):
+def source_selection_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_min, z_max, eps=1e-5, tol=1e-10):
     total_region = [(z_min, z_max)]
     majority = (len(folds) + 1) // 2
     selected_sources = set(I_obs)
@@ -265,7 +265,7 @@ def source_selection_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda
     return total_region
 
 
-def model_selection_region(X0, Y0, XS_list, YS_list, a, b, I_obs, M_obs, lambda0, lambdak_list, z_min, z_max, eps=1e-4, tol=1e-10):
+def model_selection_region(X0, Y0, XS_list, YS_list, a, b, I_obs, M_obs, lambda0, lambdak_list, z_min, z_max, eps=1e-5, tol=1e-10):
     ns_list = [ys.shape[0] for ys in YS_list]
     source_a_blocks, target_a = utils.split_stacked_response(a, ns_list, Y0.shape[0])
     source_b_blocks, target_b = utils.split_stacked_response(b, ns_list, Y0.shape[0])

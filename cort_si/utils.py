@@ -57,7 +57,7 @@ def calculate_a_b(etaj, Y, Sigma, N):
     return a.reshape(-1, 1), b.reshape(-1, 1)
 
 
-def merge_intervals(intervals, tol=1e-2):
+def merge_intervals(intervals, tol=1e-3):
     intervals = sorted(intervals, key=lambda x: x[0])
     merged = []
     for interval in intervals:
@@ -70,7 +70,7 @@ def merge_intervals(intervals, tol=1e-2):
 
 def pivot(intervals, etajTy, etaj, Sigma, tn_mu=0):
     if len(intervals) == 0: return None #
-    intervals = merge_intervals(intervals, tol=1e-2)
+    intervals = merge_intervals(intervals, tol=1e-3)
 
     etaj = etaj.ravel()
     stdev = np.sqrt(etaj @ (Sigma @ etaj))
