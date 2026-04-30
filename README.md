@@ -1,16 +1,14 @@
 # Adaptive CoRT-SI
 This repository now focuses on selective inference for Adaptive CoRT in high-dimensional regression.
 
-The main entry points are exported from `ptl_si.CORT_SI` and from the package root:
+The main entry points are exported from `cort_si.CORT_SI` and from the package root:
 
 ```python
-from ptl_si import SI, SI_randj
+from cort_si import SI, SI_randj
 ```
 
 `SI(...)` returns a list of `(feature_index, selective_p_value)` pairs for the selected target features.
 `SI_randj(...)` returns one selective p-value for a randomly chosen selected target feature.
-
-The package directory remains named `ptl_si`, so the import path is unchanged.
 
 
 ## Requirements & Installation
@@ -25,7 +23,7 @@ This package has the following requirements:
 
 This package can be installed using pip:
 ```bash
-pip install ptl_si
+pip install cort_si
 ```
 
 We recommend to install or update anaconda to the latest version and use Python 3 (We used Python 3.11.4).
@@ -34,7 +32,7 @@ We recommend to install or update anaconda to the latest version and use Python 
 
 ```python
 import numpy as np
-from ptl_si import SI, gen_data
+from cort_si import SI, gen_data
 
 np.random.seed(0)
 XS_list, YS_list, X0, Y0, _, SigmaS_list, Sigma0, _ = gen_data.generate_data(
