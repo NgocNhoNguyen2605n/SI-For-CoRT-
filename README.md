@@ -1,5 +1,16 @@
-# PTL-SI: Post-Transfer Learning Statistical Inference in High-Dimensional Regression
-**PTL-SI** is a Python package designed for conducting valid statistical inference in high-dimensional regression (HDR) settings with transfer learning (TL). It implements selective inference methods to control the false positive rate (FPR) while maximizing the true positive rate (TPR) in feature selection after transfer learning.
+# Adaptive CoRT-SI
+This repository now focuses on selective inference for Adaptive CoRT in high-dimensional regression.
+
+The main entry points are exported from `ptl_si.CORT_SI` and from the package root:
+
+```python
+from ptl_si import SI, SI_randj
+```
+
+`SI(...)` returns a list of `(feature_index, selective_p_value)` pairs for the selected target features.
+`SI_randj(...)` returns one selective p-value for a randomly chosen selected target feature.
+
+The package directory remains named `ptl_si`, so the import path is unchanged.
 
 
 ## Requirements & Installation
@@ -19,28 +30,29 @@ pip install ptl_si
 
 We recommend to install or update anaconda to the latest version and use Python 3 (We used Python 3.11.4).
 
-## Example Notebooks
-We provide several Jupyter notebooks demonstrating how to use the `ptl_si` package in our `examples/` directory:
+## Adaptive CoRT-SI quick start
 
-  - `ex1_p_value_TF.ipynb` - Example for computing p-value for TransFusion
-  - `ex2_p_value_OTL.ipynb` -  Example for computing p-value for Oracle Trans-Lasso
-  - `ex3_pivot.ipynb` - Check the uniformity of the pivot
+```python
+import numpy as np
+from ptl_si import SI, gen_data
 
+np.random.seed(0)
+XS_list, YS_list, X0, Y0, _, SigmaS_list, Sigma0, _ = gen_data.generate_data(
+  p=5, s=2, nS=6, nT=7, true_beta=1.0, num_info_aux=1, num_uninfo_aux=1, gamma=0.05)
 
-## Citation
-If you use this package or the methodology in your research, please cite our paper: Tam, N.V.K., My, C.H. & Le Duy, V.N. Post-transfer learning statistical inference in high-dimensional regression. Stat Comput 35, 205 (2025). https://doi.org/10.1007/s11222-025-10738-z
+p_values = SI(
+  X0, Y0, XS_list, YS_list,
+  lambda_sel=0.05, lambda0=0.05, lambdak_list=[0.05] * len(XS_list),
+  SigmaS_list=SigmaS_list, Sigma0=Sigma0, T=3, z_min=-5, z_max=5)
 
-
-
+print(p_values)
 ```
-@article{tam2025post,
-  title     = {Post-transfer learning statistical inference in high-dimensional regression},
-  author    = {Tam, Nguyen Vu Khai and My, Cao Huyen and Duy, Vo Nguyen Le},
-  journal   = {Statistics and Computing},
-  volume    = {35},
-  pages     = {205},
-  year      = {2025},
-  publisher = {Springer},
-  doi       = {10.1007/s11222-025-10738-z}
-}
-```
+
+## Example
+The `examples/` directory contains one minimal runnable example for the Adaptive CoRT-SI pipeline:
+
+- `adaptive_cort_si.py`
+
+
+## Status
+This codebase contains only the Adaptive CoRT-SI implementation and supporting utilities.

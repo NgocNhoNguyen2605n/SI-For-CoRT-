@@ -1,311 +1,327 @@
 import numpy as np
 from numpy.linalg import pinv
 
+try:
+    from . import utils
+    from . import transfer_learning_hdr
+except ImportError:
+    import utils
+    import transfer_learning_hdr
 
-def compute_Zu(SO, O, XO, Oc, XOc, a, b, lambda_0, a_tilde, N):
-    a_tilde_O = a_tilde[O]
-    a_tilde_Oc = a_tilde[Oc]
+
+def lasso_state_interval(X_train, a_train, b_train, active_set, sign_vec, lambda_sel, n_samples):
+    a_train = np.asarray(a_train, dtype=float).reshape(-1, 1)
+    b_train = np.asarray(b_train, dtype=float).reshape(-1, 1)
+    active_set = list(active_set)
+    inactive_set = [idx for idx in range(X_train.shape[1]) if idx not in active_set]
+    sign_vec = np.asarray(sign_vec, dtype=float).reshape(-1, 1)
+
+    c_full = np.zeros((X_train.shape[1], 1))
+    d_full = np.zeros((X_train.shape[1], 1))
+    psi0 = np.array([])
+    gamma0 = np.array([])
+    psi1 = np.array([])
+    gamma1 = np.array([])
+
+    if active_set:
+        X_active = X_train[:, active_set]
+        gram_inv = pinv(X_active.T @ X_active)
+        X_active_plus = gram_inv @ X_active.T
+        embed_active = np.eye(X_train.shape[1])[:, active_set]
+
+        c_active = gram_inv @ (X_active.T @ a_train - (n_samples * lambda_sel) * sign_vec)
+        d_active = gram_inv @ (X_active.T @ b_train)
+        c_full = embed_active @ c_active
+        d_full = embed_active @ d_active
+
+        psi0 = (-sign_vec * (X_active_plus @ b_train)).ravel()
+        gamma0 = (sign_vec * (X_active_plus @ a_train - (n_samples * lambda_sel) * (gram_inv @ sign_vec))).ravel()
+        projection = np.eye(X_train.shape[0]) - X_active @ X_active_plus
+    else:
+        X_active = np.zeros((X_train.shape[0], 0))
+        gram_inv = np.zeros((0, 0))
+        projection = np.eye(X_train.shape[0])
+
+    if inactive_set:
+        X_inactive = X_train[:, inactive_set]
+        inactive_term = X_inactive.T @ projection
+        term_b = inactive_term @ b_train
+        psi1 = np.concatenate([
+            (term_b / (n_samples * lambda_sel)).ravel(),
+            (-term_b / (n_samples * lambda_sel)).ravel(),
+        ])
+
+        if active_set:
+            coupling = X_inactive.T @ X_active @ gram_inv @ sign_vec
+        else:
+            coupling = np.zeros((len(inactive_set), 1))
+
+        term_a = inactive_term @ a_train
+        gamma1 = np.concatenate([
+            (np.ones_like(term_a) - coupling - (term_a / (n_samples * lambda_sel))).ravel(),
+            (np.ones_like(term_a) + coupling + (term_a / (n_samples * lambda_sel))).ravel(),
+        ])
+
+    psi = np.concatenate((psi0, psi1))
+    gamma = np.concatenate((gamma0, gamma1))
+    interval = utils.solve_linear_inequalities_1d(psi, gamma)
+    return psi, gamma, c_full, d_full, interval
+
+
+def target_fold_state_interval(X0_train, a0_train, b0_train, active_set, sign_vec, lambda_sel, n_train):
+    return lasso_state_interval(X0_train, a0_train, b0_train, active_set, sign_vec, lambda_sel, n_train)
+
+
+def augmented_fold_state_interval(X_aug_train, a_aug_train, b_aug_train, active_set, sign_vec, lambda_sel, n_aug):
+    return lasso_state_interval(X_aug_train, a_aug_train, b_aug_train, active_set, sign_vec, lambda_sel, n_aug)
+
+
+def validation_quadratic(X0_val, a0_val, b0_val, c0, d0, ck, dk, n_val):
+    a0_val = np.asarray(a0_val, dtype=float).reshape(-1, 1)
+    b0_val = np.asarray(b0_val, dtype=float).reshape(-1, 1)
+    c0 = np.asarray(c0, dtype=float).reshape(-1, 1)
+    d0 = np.asarray(d0, dtype=float).reshape(-1, 1)
+    ck = np.asarray(ck, dtype=float).reshape(-1, 1)
+    dk = np.asarray(dk, dtype=float).reshape(-1, 1)
+
+    residual0_a = a0_val - X0_val @ c0
+    residual0_b = b0_val - X0_val @ d0
+    residualk_a = a0_val - X0_val @ ck
+    residualk_b = b0_val - X0_val @ dk
+
+    A0 = 0.5 * float(residual0_b.T @ residual0_b) / n_val
+    B0 = float(residual0_a.T @ residual0_b) / n_val
+    C0 = 0.5 * float(residual0_a.T @ residual0_a) / n_val
+
+    Ak = 0.5 * float(residualk_b.T @ residualk_b) / n_val
+    Bk = float(residualk_a.T @ residualk_b) / n_val
+    Ck = 0.5 * float(residualk_a.T @ residualk_a) / n_val
+
+    return Ak - A0, Bk - B0, Ck - C0
+
+
+def kkt_interval(X_tilde, a_adapt, b_adapt, theta_hat, w_tilde, p, tol=1e-10):
+    a_adapt = np.asarray(a_adapt, dtype=float).reshape(-1, 1)
+    b_adapt = np.asarray(b_adapt, dtype=float).reshape(-1, 1)
+    theta_hat = np.asarray(theta_hat, dtype=float).ravel()
+    w_tilde = np.asarray(w_tilde, dtype=float).reshape(-1, 1)
+
+    active_set = [idx for idx, value in enumerate(theta_hat) if abs(value) > tol]
+    inactive_set = [idx for idx in range(X_tilde.shape[1]) if idx not in active_set]
+    sign_vec = np.sign(theta_hat[active_set]).reshape(-1, 1) if active_set else np.zeros((0, 1))
 
     psi0 = np.array([])
     gamma0 = np.array([])
     psi1 = np.array([])
     gamma1 = np.array([])
 
-    if len(O) > 0:
-        inv = pinv(XO.T @ XO)
-        XO_plus = inv @ XO.T
+    if active_set:
+        X_active = X_tilde[:, active_set]
+        gram_inv = pinv(X_active.T @ X_active)
+        X_active_plus = gram_inv @ X_active.T
+        weighted_sign = w_tilde[active_set] * sign_vec
 
-        # Calculate psi0
-        XO_plus_b = XO_plus @ b
-        psi0 = (-SO * XO_plus_b).ravel()
+        psi0 = (-sign_vec * (X_active_plus @ b_adapt)).ravel()
+        gamma0 = (sign_vec * (X_active_plus @ a_adapt) - sign_vec * (gram_inv @ weighted_sign)).ravel()
+        projection = np.eye(X_tilde.shape[0]) - X_active @ X_active_plus
+    else:
+        X_active = np.zeros((X_tilde.shape[0], 0))
+        gram_inv = np.zeros((0, 0))
+        weighted_sign = np.zeros((0, 1))
+        projection = np.eye(X_tilde.shape[0])
 
-        # Calculate gamma0
-        XO_plus_a = XO_plus @ a
-        gamma0_term_inv = inv @ (a_tilde_O * SO)
-
-        gamma0 = SO * XO_plus_a - N * lambda_0 * SO * gamma0_term_inv
-        gamma0 = gamma0.ravel()
-
-    if len(Oc) > 0:
-        if len(O) == 0:
-            proj = np.eye(N)
-            temp2 = 0
-
-        else:
-            proj = np.eye(N) - XO @ XO_plus
-            XO_O_plus = XO @ inv
-            temp2 = (XOc.T @ XO_O_plus) @ (a_tilde_O * SO)
-            temp2 = temp2 / a_tilde_Oc
-
-        XOc_O_proj = XOc.T @ proj
-        temp1 = (XOc_O_proj / a_tilde_Oc) / (lambda_0 * N)
-
-        # Calculate psi1
-        term_b = temp1 @ b
+    if inactive_set:
+        X_inactive = X_tilde[:, inactive_set]
+        inactive_term = X_inactive.T @ projection
+        term_b = inactive_term @ b_adapt
         psi1 = np.concatenate([term_b.ravel(), -term_b.ravel()])
 
-        # Calculate gamma1
-        term_a = temp1 @ a
-        ones_vec = np.ones_like(term_a)
+        if active_set:
+            coupling = X_inactive.T @ X_active @ gram_inv @ weighted_sign
+        else:
+            coupling = np.zeros((len(inactive_set), 1))
 
-        gamma1 = np.concatenate([(ones_vec - temp2 - term_a).ravel(), (ones_vec + temp2 + term_a).ravel()])
+        term_a = inactive_term @ a_adapt
+        gamma1 = np.concatenate([
+            (w_tilde[inactive_set] - coupling - term_a).ravel(),
+            (w_tilde[inactive_set] + coupling + term_a).ravel(),
+        ])
 
     psi = np.concatenate((psi0, psi1))
     gamma = np.concatenate((gamma0, gamma1))
+    interval = utils.solve_linear_inequalities_1d(psi, gamma)
 
-    lu = -np.inf
-    ru = np.inf
+    target_start = X_tilde.shape[1] - p
+    target_active = [idx - target_start for idx in active_set if idx >= target_start]
+    return interval, target_active
 
-    for i in range(len(psi)):
-        if psi[i] == 0:
-            if gamma[i] < 0:
-                return [np.inf, -np.inf]
-        elif psi[i] > 0:
-            val = gamma[i] / psi[i]
-            if val < ru:
-                ru = val
+
+def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds, lambda_sel, z_min, z_max, eps=1e-4, tol=1e-10):
+    ns_list = [ys.shape[0] for ys in YS_list]
+    source_a_blocks, target_a = utils.split_stacked_response(a, ns_list, Y0.shape[0])
+    source_b_blocks, target_b = utils.split_stacked_response(b, ns_list, Y0.shape[0])
+
+    fold_indices = np.asarray(folds[fold_idx], dtype=int)
+    train_indices = utils.complement_fold_indices(Y0.shape[0], fold_indices)
+    X0_train = X0[train_indices]
+    X0_val = X0[fold_indices]
+
+    a0_train = target_a[train_indices]
+    b0_train = target_b[train_indices]
+    a0_val = target_a[fold_indices]
+    b0_val = target_b[fold_indices]
+
+    X_source = XS_list[source_idx]
+    a_source = source_a_blocks[source_idx]
+    b_source = source_b_blocks[source_idx]
+    X_aug_train = np.vstack([X_source, X0_train])
+    a_aug_train = np.concatenate([a_source, a0_train])
+    b_aug_train = np.concatenate([b_source, b0_train])
+
+    intervals = []
+    z = z_min
+    while z < z_max:
+        y0_train = a0_train + (b0_train * z)
+        beta_target = transfer_learning_hdr.solve_lasso(X0_train, y0_train, lambda_sel)
+        _, active_target, sign_target, _ = utils.construct_betaM_M_SM_Mc(beta_target)
+        _, _, c0, d0, target_interval = target_fold_state_interval(
+            X0_train,
+            a0_train,
+            b0_train,
+            active_target,
+            np.asarray(sign_target).ravel(),
+            lambda_sel,
+            len(train_indices),
+        )
+
+        y_aug_train = a_aug_train + (b_aug_train * z)
+        beta_aug = transfer_learning_hdr.solve_lasso(X_aug_train, y_aug_train, lambda_sel)
+        _, active_aug, sign_aug, _ = utils.construct_betaM_M_SM_Mc(beta_aug)
+        _, _, ck, dk, aug_interval = augmented_fold_state_interval(
+            X_aug_train,
+            a_aug_train,
+            b_aug_train,
+            active_aug,
+            np.asarray(sign_aug).ravel(),
+            lambda_sel,
+            X_aug_train.shape[0],
+        )
+
+        linear_region = utils.intersect_interval_unions(target_interval, aug_interval, tol=tol)
+        linear_region = utils.clip_interval_union(linear_region, z, z_max, tol=tol)
+        if not linear_region:
+            z += eps
+            continue
+
+        Atilde, Btilde, Ctilde = validation_quadratic(X0_val, a0_val, b0_val, c0, d0, ck, dk, len(fold_indices))
+        quad_region = utils.solve_quadratic_leq(Atilde, Btilde, Ctilde)
+        local_region = utils.intersect_interval_unions(linear_region, quad_region, tol=tol)
+        local_region = utils.clip_interval_union(local_region, z_min, z_max, tol=tol)
+        intervals = utils.union_interval_unions(intervals, local_region, tol=tol)
+
+        right_endpoint = linear_region[-1][1]
+        if not np.isfinite(right_endpoint):
+            break
+        if right_endpoint <= z + tol:
+            z += eps
         else:
-            val = gamma[i] / psi[i]
-            if val > lu:
-                lu = val
-    return [lu, ru]
+            z = right_endpoint + eps
 
-def compute_Zu_otl(SO, O, XIO, Oc, XIOc, a, b, P, lambda_w, nI):
-    psi0 = np.array([])
-    gamma0 = np.array([])
-    psi1 = np.array([])
-    gamma1 = np.array([])
+    return utils.clip_interval_union(intervals, z_min, z_max, tol=tol)
 
-    if len(O) > 0:
-        inv = pinv(XIO.T @ XIO)
-        XIO_plus = inv @ XIO.T
 
-        # Calculate psi0
-        XIO_plus_Pb = XIO_plus @ P @ b
-        psi0 = (-SO * XIO_plus_Pb).ravel()
+def source_selection_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_min, z_max, eps=1e-4, tol=1e-10):
+    total_region = [(z_min, z_max)]
+    majority = (len(folds) + 1) // 2
+    selected_sources = set(I_obs)
 
-        # Calculate gamma0
-        XIO_plus_Pa = XIO_plus @ P @ a
-        gamma0_term_inv = inv @ SO
+    for source_idx in range(len(XS_list)):
+        win_regions = [
+            fold_win_region(
+                source_idx,
+                fold_idx,
+                X0,
+                Y0,
+                XS_list,
+                YS_list,
+                a,
+                b,
+                folds,
+                lambda_sel,
+                z_min,
+                z_max,
+                eps=eps,
+                tol=tol,
+            )
+            for fold_idx in range(len(folds))
+        ]
 
-        gamma0 = SO * XIO_plus_Pa - nI * lambda_w * SO * gamma0_term_inv
-        gamma0 = gamma0.ravel()
+        mode = "selected" if source_idx in selected_sources else "discarded"
+        source_region = utils.count_region_from_fold_wins(win_regions, majority, mode, z_min=z_min, z_max=z_max, tol=tol)
+        total_region = utils.intersect_interval_unions(total_region, source_region, tol=tol)
+        if not total_region:
+            return []
 
-    if len(Oc) > 0:
-        if len(O) == 0:
-            proj = np.eye(nI)
-            temp2 = 0
+    return total_region
 
+
+def model_selection_region(X0, Y0, XS_list, YS_list, a, b, I_obs, M_obs, lambda0, lambdak_list, z_min, z_max, eps=1e-4, tol=1e-10):
+    ns_list = [ys.shape[0] for ys in YS_list]
+    source_a_blocks, target_a = utils.split_stacked_response(a, ns_list, Y0.shape[0])
+    source_b_blocks, target_b = utils.split_stacked_response(b, ns_list, Y0.shape[0])
+
+    selected_source_set = list(I_obs)
+    source_a_selected = [source_a_blocks[idx] for idx in selected_source_set]
+    source_b_selected = [source_b_blocks[idx] for idx in selected_source_set]
+
+    a_adapt = np.concatenate([
+        np.asarray(source_a_selected[idx]).reshape(-1) / np.sqrt(source_a_selected[idx].shape[0])
+        for idx in range(len(source_a_selected))
+    ] + [target_a / np.sqrt(Y0.shape[0])])
+    b_adapt = np.concatenate([
+        np.asarray(source_b_selected[idx]).reshape(-1) / np.sqrt(source_b_selected[idx].shape[0])
+        for idx in range(len(source_b_selected))
+    ] + [target_b / np.sqrt(Y0.shape[0])])
+
+    intervals = []
+    z = z_min
+    while z < z_max:
+        Y0_z = target_a + (target_b * z)
+        YS_z = [source_a_blocks[idx] + (source_b_blocks[idx] * z) for idx in range(len(XS_list))]
+        theta_hat, beta0_hat, X_tilde, w_tilde = transfer_learning_hdr.solve_cort_model(
+            X0,
+            Y0_z,
+            XS_list,
+            YS_z,
+            selected_source_set,
+            lambda0,
+            lambdak_list,
+        )
+
+        local_interval, target_active = kkt_interval(
+            X_tilde,
+            a_adapt,
+            b_adapt,
+            theta_hat,
+            w_tilde,
+            p=X0.shape[1],
+            tol=tol,
+        )
+
+        local_interval = utils.clip_interval_union(local_interval, z, z_max, tol=tol)
+        if not local_interval:
+            z += eps
+            continue
+
+        if list(target_active) == list(M_obs):
+            intervals = utils.union_interval_unions(intervals, local_interval, tol=tol)
+
+        right_endpoint = local_interval[-1][1]
+        if not np.isfinite(right_endpoint):
+            break
+        if right_endpoint <= z + tol:
+            z += eps
         else:
-            proj = np.eye(nI) - XIO @ XIO_plus
-            XIO_T_plus = XIO @ inv
-            temp2 = (XIOc.T @ XIO_T_plus) @ SO
+            z = right_endpoint + eps
 
-        XIOc_T_proj = XIOc.T @ proj
-        temp1 = XIOc_T_proj / (lambda_w * nI)
-
-        # Calculate psi1
-        term_Pb = temp1 @ P @ b
-        psi1 = np.concatenate([term_Pb.ravel(), - term_Pb.ravel()])
-
-        # Calculate gamma1
-        term_Pa = temp1 @ P @ a
-        ones_vec = np.ones_like(term_Pa)
-
-        gamma1 = np.concatenate([(ones_vec - temp2 - term_Pa).ravel(), (ones_vec + temp2 + term_Pa).ravel()])
-
-
-    psi = np.concatenate((psi0, psi1))
-    gamma = np.concatenate((gamma0, gamma1))
-
-    lu = -np.inf
-    ru = np.inf
-
-    for i in range(len(psi)):
-        if psi[i] == 0:
-            if gamma[i] < 0:
-                return [np.inf, -np.inf]
-        elif psi[i] > 0:
-            val = gamma[i] / psi[i]
-            if val < ru:
-                ru = val
-        else:
-            val = gamma[i] / psi[i]
-            if val > lu:
-                lu = val
-
-    return [lu, ru]
-
-def compute_Zv(SL, L, X0L, Lc, X0Lc, phi_u, iota_u, a, b, lambda_tilde, nT):
-    nu0 = np.array([])
-    kappa0 = np.array([])
-    nu1 = np.array([])
-    kappa1 = np.array([])
-
-    phi_a_iota = (phi_u @  a) + iota_u
-    phi_b = phi_u @ b
-
-    if len(L) > 0:
-        inv = pinv(X0L.T @ X0L)
-        X0L_plus = inv @ X0L.T
-
-        # Calculate nu0
-        X0L_plus_phi_b = X0L_plus @ phi_b
-        nu0 = (- SL * X0L_plus_phi_b).ravel()
-
-        # Calculate kappa0
-        X0L_plus_a = X0L_plus @ phi_a_iota
-        kappa0_term_inv = inv @ SL
-        kappa0 = SL * X0L_plus_a - (nT * lambda_tilde) * SL * kappa0_term_inv
-        kappa0 = kappa0.ravel()
-
-    if len(Lc) > 0:
-        if len(L) == 0:
-            proj = np.eye(nT)
-            temp2 = 0
-
-        else:
-            proj = np.eye(nT) - X0L@X0L_plus
-
-            X0L_T_plus = X0L @ inv
-            temp2 = (X0Lc.T @ X0L_T_plus) @ SL
-
-
-        X0Lc_T_proj = X0Lc.T @ proj
-        temp1 = X0Lc_T_proj / (lambda_tilde * nT)
-
-        # Calculate nu1
-        term_b = temp1 @ phi_b
-        nu1 = np.concatenate([term_b.ravel(), -term_b.ravel()])
-
-        # Calculate kappa1
-        term_a = temp1 @ phi_a_iota
-        ones_vec = np.ones_like(term_a)
-        kappa1 = np.concatenate([(ones_vec - temp2 - term_a).ravel(), (ones_vec + temp2 + term_a).ravel()])
-
-    nu = np.concatenate((nu0, nu1))
-    kappa = np.concatenate((kappa0, kappa1))
-
-    lv = -np.inf
-    rv = np.inf
-
-    for i in range(len(nu)):
-        if nu[i] == 0:
-            if kappa[i] < 0:
-                return [np.inf, -np.inf]
-        elif nu[i] > 0:
-            val = kappa[i] / nu[i]
-            if val < rv:
-                rv = val
-        else:
-            val = kappa[i] / nu[i]
-            if val > lv:
-                lv = val
-
-    return [lv, rv]
-
-
-def compute_Zt(M, SM, Mc, xi_uv, zeta_uv, a, b):
-    omega0 = np.array([])
-    rho0 = np.array([])
-    omega1 = np.array([])
-    rho1 = np.array([])
-
-    xi_a_zeta = (xi_uv @  a) + zeta_uv
-    xi_b = xi_uv @ b
-
-    if len(M) > 0:
-        Dt_xi_a_zeta = xi_a_zeta[M]
-        Dt_xi_b = xi_b[M]
-
-        # Calculate omega0, rho0
-        omega0 = (-SM * Dt_xi_b).ravel()
-        rho0 = (SM * Dt_xi_a_zeta).ravel()
-
-    if len(Mc) > 0:
-        Dtc_xi_a_zeta = xi_a_zeta[Mc]
-        Dtc_xi_b = xi_b[Mc]
-
-        # Calculate omega1, rho1
-        omega1 = np.concatenate([Dtc_xi_b.ravel(), -Dtc_xi_b.ravel()])
-        rho1 = np.concatenate([-Dtc_xi_a_zeta.ravel(), Dtc_xi_a_zeta.ravel()])
-
-    omega = np.concatenate((omega0, omega1))
-    rho = np.concatenate((rho0, rho1))
-
-    lt = -np.inf
-    rt = np.inf
-
-    for i in range(len(omega)):
-        if omega[i] == 0:
-            if rho[i] < 0:
-                return [np.inf, -np.inf]
-        elif omega[i] > 0:
-            val = rho[i] / omega[i]
-            if val < rt:
-                rt = val
-        else:
-            val = rho[i] / omega[i]
-            if val > lt:
-                lt = val
-
-    return [lt, rt]
-
-
-def calculate_phi_iota_xi_zeta(X, SO, O, XO, X0, SL, L, X0L, p, B, Q, lambda_0, lambda_tilde, a_tilde, N, nT):
-    phi_u = Q.copy()
-    iota_u = np.zeros((nT, 1))
-    xi_uv = np.zeros((p, N))
-    zeta_uv = np.zeros((p, 1))
-
-    if len(O) > 0:
-        a_tilde_O = a_tilde[O]
-        Eu = np.eye(X.shape[1])[:, O]
-        inv_XOT_XO = pinv(XO.T @ XO)
-        XO_plus = inv_XOT_XO @ XO.T
-        X0_B_Eu = X0 @ B @ Eu
-        B_Eu_inv_XOT_XO = B @ Eu @ inv_XOT_XO
-
-        phi_u -= (1.0 / N) * (X0_B_Eu @ XO_plus)
-        iota_u = lambda_0 * (X0_B_Eu @ inv_XOT_XO) @ (a_tilde_O * SO)
-
-        xi_uv += (1.0 / N) * (B_Eu_inv_XOT_XO @ XO.T)
-        zeta_uv += -lambda_0 * B_Eu_inv_XOT_XO @ (a_tilde_O * SO)
-
-    if len(L) > 0:
-        Fv = np.eye(p)[:, L]
-        inv_X0LT_X0L = pinv(X0L.T @ X0L)
-        X0L_plus = inv_X0LT_X0L @ X0L.T
-
-        xi_uv += Fv @ X0L_plus @ phi_u
-        zeta_uv += Fv @ inv_X0LT_X0L @ (X0L.T @ iota_u - (nT * lambda_tilde) * SL)
-
-    return phi_u, iota_u, xi_uv, zeta_uv
-
-
-def calculate_phi_iota_xi_zeta_otl(XI, SO, O, XIO, X0, SL, L, X0L, p, Q, P, lambda_w, lambda_del, nI, nT):
-    phi_u = Q.copy()
-    iota_u = np.zeros((nT, 1))
-    xi_uv = np.zeros((p, nI + nT))
-    zeta_uv = np.zeros((p, 1))
-
-    if len(O) > 0:
-        Eu = np.eye(XI.shape[1])[:, O]
-        inv_XIO_T_XIO = pinv(XIO.T @ XIO)
-        XIO_plus = inv_XIO_T_XIO @ XIO.T
-        X0_Eu = X0 @ Eu
-
-        phi_u -= X0_Eu @ XIO_plus @ P
-        iota_u = (nI * lambda_w) * (X0_Eu @ inv_XIO_T_XIO @ SO)
-        xi_uv += Eu @ XIO_plus @ P
-        zeta_uv += -(nI * lambda_w) * (Eu @  inv_XIO_T_XIO @ SO)
-
-    if len(L) > 0:
-        Fv = np.eye(p)[:, L]
-        inv_X0L_T_X0L = pinv(X0L.T @ X0L)
-        X0L_plus = inv_X0L_T_X0L @ X0L.T
-
-        xi_uv += Fv @ X0L_plus @ phi_u
-        zeta_uv += Fv @ inv_X0L_T_X0L @ (X0L.T @ iota_u - (nT * lambda_del) * SL)
-
-    return phi_u, iota_u, xi_uv, zeta_uv
+    return utils.clip_interval_union(intervals, z_min, z_max, tol=tol)
