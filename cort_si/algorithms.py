@@ -70,20 +70,14 @@ def adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel, verbo
 
             fold_tag = f"source {source_idx}, fold {fold_idx + 1}"
             beta_target = solve_lasso(
-                X0_train,
-                Y0_train,
-                lambda_sel,
-                verbose=verbose,
-                label=f"{fold_tag} target-only",
+                X0_train, Y0_train, lambda_sel,
+                verbose=verbose, label=f"{fold_tag} target-only",
             )
             X_aug_train = np.vstack([Xk, X0_train])
             Y_aug_train = np.concatenate([Yk, Y0_train])
             beta_aug = solve_lasso(
-                X_aug_train,
-                Y_aug_train,
-                lambda_sel,
-                verbose=verbose,
-                label=f"{fold_tag} target+source",
+                X_aug_train, Y_aug_train, lambda_sel,
+                verbose=verbose, label=f"{fold_tag} target+source",
             )
 
             loss_target = 0.5 * np.mean((Y0_valid - X0_valid @ beta_target) ** 2)

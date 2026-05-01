@@ -71,21 +71,9 @@ def _resolve_num_sources(K, num_info_aux=None, num_uninfo_aux=None):
 
 
 def generate_data(
-    p=500,
-    nS=200,
-    nT=75,
-    K=5,
-    h=10,
-    rho=0.0,
-    sigma_noise=1.0,
-    source_shift_sd=0.3,
-    covariate_shift=False,
-    seed=None,
-    s=None,
-    true_beta=None,
-    num_info_aux=None,
-    num_uninfo_aux=None,
-    gamma=None,
+    p=500, nS=200, nT=75, K=5, h=10, rho=0.0, sigma_noise=1.0,
+    source_shift_sd=0.3, covariate_shift=False, seed=None, s=None, true_beta=None,
+    num_info_aux=None, num_uninfo_aux=None, gamma=None,
 ):
     if p <= 0:
         raise ValueError("p must be positive.")

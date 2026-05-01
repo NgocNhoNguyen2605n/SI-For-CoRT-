@@ -57,7 +57,6 @@ CORT_SI/
 │   ├── sub_prob.py                 # Interval solvers for selection events
 │   ├── gen_data.py                 # Synthetic data generation
 │   ├── utils.py                    # Shared helpers and interval algebra
-│   └── transfer_learning_hdr.py    # Backward-compatible shim
 ├── examples/                       # Runnable examples
 │   ├── ex1_p_value_CORT.ipynb      # Main p-value demo notebook
 │   └── ex2_pivot_CORT.ipynb        # Pivot validation notebook

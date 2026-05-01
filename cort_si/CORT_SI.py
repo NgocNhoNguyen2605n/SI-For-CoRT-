@@ -23,15 +23,8 @@ def SI(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS_list,
 
     I_obs = algorithms.adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel, verbose=verbose)
     _, beta0_hat, _, _ = algorithms.solve_cort_model(
-        X0,
-        Y0,
-        XS_list,
-        YS_list,
-        I_obs,
-        lambda0,
-        lambdak_list,
-        verbose=verbose,
-        label="Observed CoRT fit",
+        X0, Y0, XS_list, YS_list, I_obs, lambda0, lambdak_list,
+        verbose=verbose, label="Observed CoRT fit",
     )
     M_obs = [idx for idx, value in enumerate(beta0_hat) if value != 0]
 
@@ -50,10 +43,10 @@ def SI(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS_list,
         etaj, etajTy = utils.construct_test_statistic(j, X0M, Y_obs, M_obs, Y0.shape[0], Y_obs.shape[0])
         a, b = utils.calculate_a_b(etaj, Y_obs, Sigma, Y_obs.shape[0])
 
-        intervals_source = sub_prob.source_selection_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_min, z_max)
-        intervals_model = sub_prob.model_selection_region(
-            X0, Y0, XS_list, YS_list, a, b,
-            I_obs, M_obs, lambda0, lambdak_list, z_min, z_max,
+        intervals_source = sub_prob.compute_Z1_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_min, z_max)
+        intervals_model = sub_prob.compute_Z2_region(
+            X0, Y0, XS_list, YS_list, a, b, I_obs, M_obs,
+            intervals_source, lambda0, lambdak_list,
         )
         intervals = utils.intersect_interval_unions(intervals_source, intervals_model)
         p_sel = None
@@ -77,15 +70,8 @@ def SI_randj(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS
 
     I_obs = algorithms.adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel, verbose=verbose)
     _, beta0_hat, _, _ = algorithms.solve_cort_model(
-        X0,
-        Y0,
-        XS_list,
-        YS_list,
-        I_obs,
-        lambda0,
-        lambdak_list,
-        verbose=verbose,
-        label="Observed CoRT fit",
+        X0, Y0, XS_list, YS_list, I_obs, lambda0, lambdak_list,
+        verbose=verbose, label="Observed CoRT fit",
     )
     M_obs = [idx for idx, value in enumerate(beta0_hat) if value != 0]
 
@@ -104,10 +90,10 @@ def SI_randj(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_list, SigmaS
     etaj, etajTy = utils.construct_test_statistic(j, X0M, Y_obs, M_obs, Y0.shape[0], Y_obs.shape[0])
     a, b = utils.calculate_a_b(etaj, Y_obs, Sigma, Y_obs.shape[0])
 
-    intervals_source = sub_prob.source_selection_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_min, z_max)
-    intervals_model = sub_prob.model_selection_region(
-        X0, Y0, XS_list, YS_list, a, b,
-        I_obs, M_obs, lambda0, lambdak_list, z_min, z_max,
+    intervals_source = sub_prob.compute_Z1_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_min, z_max)
+    intervals_model = sub_prob.compute_Z2_region(
+        X0, Y0, XS_list, YS_list, a, b, I_obs, M_obs,
+        intervals_source, lambda0, lambdak_list,
     )
     intervals = utils.intersect_interval_unions(intervals_source, intervals_model)
     if not intervals:
