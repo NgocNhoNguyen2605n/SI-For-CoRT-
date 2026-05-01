@@ -76,6 +76,42 @@ def augmented_fold_state_interval(X_aug_train, a_aug_train, b_aug_train, active_
     return lasso_state_interval(X_aug_train, a_aug_train, b_aug_train, active_set, sign_vec, lambda_sel, n_aug)
 
 
+def collect_target_fold_states(X0_train, a0_train, b0_train, lambda_sel, n_train, z_min, z_max, eps=1e-5, tol=1e-10):
+    target_fold_states = []
+    z = z_min
+
+    while z < z_max:
+        y0_train = a0_train + (b0_train * z)
+        beta_target = algorithms.solve_lasso(X0_train, y0_train, lambda_sel)
+        _, active_target, sign_target, _ = utils.construct_betaM_M_SM_Mc(beta_target)
+        _, _, c0, d0, target_interval = target_fold_state_interval(
+            X0_train,
+            a0_train,
+            b0_train,
+            active_target,
+            np.asarray(sign_target).ravel(),
+            lambda_sel,
+            n_train,
+        )
+
+        target_interval = utils.clip_interval_union(target_interval, z, z_max, tol=tol)
+        if not target_interval:
+            z += eps
+            continue
+
+        target_fold_states.append((c0, d0, target_interval))
+
+        right_endpoint = target_interval[-1][1]
+        if not np.isfinite(right_endpoint):
+            break
+        if right_endpoint <= z + tol:
+            z += eps
+        else:
+            z = right_endpoint + eps
+
+    return target_fold_states
+
+
 def validation_quadratic(X0_val, a0_val, b0_val, c0, d0, ck, dk, n_val):
     a0_val = np.asarray(a0_val, dtype=float).reshape(-1, 1)
     b0_val = np.asarray(b0_val, dtype=float).reshape(-1, 1)
@@ -161,7 +197,7 @@ def kkt_interval(X_tilde, a_adapt, b_adapt, theta_hat, w_tilde, p, tol=1e-10):
     return interval, target_active
 
 
-def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds, lambda_sel, z_min, z_max, eps=1e-5, tol=1e-10):
+def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds, lambda_sel, z_min, z_max, target_fold_states=None, eps=1e-5, tol=1e-10):
     ns_list = [ys.shape[0] for ys in YS_list]
     source_a_blocks, target_a = utils.split_stacked_response(a, ns_list, Y0.shape[0])
     source_b_blocks, target_b = utils.split_stacked_response(b, ns_list, Y0.shape[0])
@@ -183,54 +219,60 @@ def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds,
     a_aug_train = np.concatenate([a_source, a0_train])
     b_aug_train = np.concatenate([b_source, b0_train])
 
-    intervals = []
-    z = z_min
-    while z < z_max:
-        y0_train = a0_train + (b0_train * z)
-        beta_target = algorithms.solve_lasso(X0_train, y0_train, lambda_sel)
-        _, active_target, sign_target, _ = utils.construct_betaM_M_SM_Mc(beta_target)
-        _, _, c0, d0, target_interval = target_fold_state_interval(
+    if target_fold_states is None:
+        target_fold_states = collect_target_fold_states(
             X0_train,
             a0_train,
             b0_train,
-            active_target,
-            np.asarray(sign_target).ravel(),
             lambda_sel,
             len(train_indices),
+            z_min,
+            z_max,
+            eps=eps,
+            tol=tol,
         )
 
-        y_aug_train = a_aug_train + (b_aug_train * z)
-        beta_aug = algorithms.solve_lasso(X_aug_train, y_aug_train, lambda_sel)
-        _, active_aug, sign_aug, _ = utils.construct_betaM_M_SM_Mc(beta_aug)
-        _, _, ck, dk, aug_interval = augmented_fold_state_interval(
-            X_aug_train,
-            a_aug_train,
-            b_aug_train,
-            active_aug,
-            np.asarray(sign_aug).ravel(),
-            lambda_sel,
-            X_aug_train.shape[0],
-        )
-
-        linear_region = utils.intersect_interval_unions(target_interval, aug_interval, tol=tol)
-        linear_region = utils.clip_interval_union(linear_region, z, z_max, tol=tol)
-        if not linear_region:
-            z += eps
+    intervals = []
+    for c0, d0, target_interval in target_fold_states:
+        segment_region = utils.clip_interval_union(target_interval, z_min, z_max, tol=tol)
+        if not segment_region:
             continue
 
-        Atilde, Btilde, Ctilde = validation_quadratic(X0_val, a0_val, b0_val, c0, d0, ck, dk, len(fold_indices))
-        quad_region = utils.solve_quadratic_leq(Atilde, Btilde, Ctilde)
-        local_region = utils.intersect_interval_unions(linear_region, quad_region, tol=tol)
-        local_region = utils.clip_interval_union(local_region, z_min, z_max, tol=tol)
-        intervals = utils.union_interval_unions(intervals, local_region, tol=tol)
+        z = segment_region[0][0]
+        segment_right = segment_region[-1][1]
+        while z < segment_right:
+            y_aug_train = a_aug_train + (b_aug_train * z)
+            beta_aug = algorithms.solve_lasso(X_aug_train, y_aug_train, lambda_sel)
+            _, active_aug, sign_aug, _ = utils.construct_betaM_M_SM_Mc(beta_aug)
+            _, _, ck, dk, aug_interval = augmented_fold_state_interval(
+                X_aug_train,
+                a_aug_train,
+                b_aug_train,
+                active_aug,
+                np.asarray(sign_aug).ravel(),
+                lambda_sel,
+                X_aug_train.shape[0],
+            )
 
-        right_endpoint = linear_region[-1][1]
-        if not np.isfinite(right_endpoint):
-            break
-        if right_endpoint <= z + tol:
-            z += eps
-        else:
-            z = right_endpoint + eps
+            linear_region = utils.intersect_interval_unions(segment_region, aug_interval, tol=tol)
+            linear_region = utils.clip_interval_union(linear_region, z, segment_right, tol=tol)
+            if not linear_region:
+                z += eps
+                continue
+
+            Atilde, Btilde, Ctilde = validation_quadratic(X0_val, a0_val, b0_val, c0, d0, ck, dk, len(fold_indices))
+            quad_region = utils.solve_quadratic_leq(Atilde, Btilde, Ctilde)
+            local_region = utils.intersect_interval_unions(linear_region, quad_region, tol=tol)
+            local_region = utils.clip_interval_union(local_region, z_min, z_max, tol=tol)
+            intervals = utils.union_interval_unions(intervals, local_region, tol=tol)
+
+            right_endpoint = linear_region[-1][1]
+            if not np.isfinite(right_endpoint):
+                return utils.clip_interval_union(intervals, z_min, z_max, tol=tol)
+            if right_endpoint <= z + tol:
+                z += eps
+            else:
+                z = right_endpoint + eps
 
     return utils.clip_interval_union(intervals, z_min, z_max, tol=tol)
 
@@ -239,6 +281,27 @@ def source_selection_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda
     total_region = [(z_min, z_max)]
     majority = (len(folds) + 1) // 2
     selected_sources = set(I_obs)
+
+    ns_list = [ys.shape[0] for ys in YS_list]
+    _, target_a = utils.split_stacked_response(a, ns_list, Y0.shape[0])
+    _, target_b = utils.split_stacked_response(b, ns_list, Y0.shape[0])
+    target_fold_state_cache = []
+    for fold_indices in folds:
+        fold_indices = np.asarray(fold_indices, dtype=int)
+        train_indices = utils.complement_fold_indices(Y0.shape[0], fold_indices)
+        target_fold_state_cache.append(
+            collect_target_fold_states(
+                X0[train_indices],
+                target_a[train_indices],
+                target_b[train_indices],
+                lambda_sel,
+                len(train_indices),
+                z_min,
+                z_max,
+                eps=eps,
+                tol=tol,
+            )
+        )
 
     for source_idx in range(len(XS_list)):
         win_regions = [
@@ -255,6 +318,7 @@ def source_selection_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda
                 lambda_sel,
                 z_min,
                 z_max,
+                target_fold_states=target_fold_state_cache[fold_idx],
                 eps=eps,
                 tol=tol,
             )
