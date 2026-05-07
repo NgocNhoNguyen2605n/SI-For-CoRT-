@@ -15,13 +15,14 @@ def _active_set_from_coef(coef):
     return [idx for idx, value in enumerate(coef) if value != 0]
 
 
-def solve_lasso(X, y, lam, fit_intercept=False, tol=1e-10, max_iter=10_000, verbose=False, label=None):
+def solve_lasso(X, y, lam, fit_intercept=False, tol=1e-10, max_iter=10000, verbose=False, label=None):
     model = Lasso(alpha=lam, fit_intercept=fit_intercept, tol=tol, max_iter=max_iter)
     model.fit(X, np.asarray(y).ravel())
     coef = model.coef_
     if verbose:
         prefix = f"{label}: " if label else ""
-        print(f"{prefix}active set = {_active_set_from_coef(coef)}")
+        # print(f"{prefix}active set = {_active_set_from_coef(coef)}")
+        print(f"len of active set: {len(_active_set_from_coef(coef))}")
     return coef
 
 
@@ -35,6 +36,7 @@ def solve_cort_model(X0, Y0, XS_list, YS_list, source_set, lambda0, lambdak_list
         fit_intercept=False,
         tol=tol,
         weights=w_tilde,
+        max_iter=50000,
     )
     weighted_lasso.fit(X_tilde, Y_tilde)
     theta_hat = weighted_lasso.coef_
@@ -53,7 +55,6 @@ def adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel, verbo
 
     if len(folds) % 2 == 0:
         raise ValueError("The number of folds T must be odd for majority voting")
-
     selected_sources = []
     majority = (len(folds) + 1) // 2
 
@@ -67,7 +68,7 @@ def adaptive_source_selection(X0, Y0, XS_list, YS_list, folds, lambda_sel, verbo
             Y0_train = Y0[train_indices]
             X0_valid = X0[fold_indices]
             Y0_valid = Y0[fold_indices]
-
+            
             fold_tag = f"source {source_idx}, fold {fold_idx + 1}"
             beta_target = solve_lasso(
                 X0_train, Y0_train, lambda_sel,

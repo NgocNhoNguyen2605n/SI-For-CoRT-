@@ -88,7 +88,7 @@ def generate_data(
 
     rng = np.random if seed is None else np.random.RandomState(seed)
 
-    base_signal = np.array([0.5, -0.4, 0.7, -0.3, 0.8], dtype=float)
+    base_signal = np.array([0.25, 0.25, 0.25, 0.3, 0.3], dtype=float)
     beta_0 = np.zeros(p, dtype=float)
     q = min(p, len(base_signal))
     beta_0[:q] = base_signal[:q]
@@ -107,16 +107,29 @@ def generate_data(
     true_Y_list = []
     SigmaS_list = []
 
-    for _ in range(K):
-        R = rng.choice([-1.0, 1.0], size=p)
-        beta_k = beta_0 + (h / p) * R
-
+    for k in range(K):
         Sigma_xk = Sigma_x0.copy()
         if covariate_shift:
             eps = rng.normal(0.0, source_shift_sd, size=p)
             Sigma_xk = Sigma_xk + np.outer(eps, eps)
 
         Xk = rng.multivariate_normal(mean=np.zeros(p), cov=Sigma_xk, size=nS)
+        if k < num_info_aux:
+            R = rng.choice([-1.0, 1.0], size=p)
+            beta_k = beta_0 + (h / p) * R
+        else:
+            beta_k = np.zeros(p)
+            
+            idx_shift = np.arange(q, 2 * q)
+            idx_random = rng.choice(np.arange(2 * q, p), size=q, replace=False)
+            active_indices = np.concatenate([idx_shift, idx_random])
+            
+            mask = np.zeros(p, dtype=bool)
+            mask[active_indices] = True
+            
+            beta_k[mask] = 0.5 + (2 * h / p) * rng.choice([-1, 1], size=len(active_indices))
+            beta_k[~mask] = 2 * h * rng.choice([-1, 1], size=np.sum(~mask))
+
         true_Yk = Xk @ beta_k
         Yk = true_Yk + rng.normal(0.0, sigma_noise, size=nS)
 
@@ -129,3 +142,6 @@ def generate_data(
     Sigma0 = (sigma_noise ** 2) * np.eye(nT)
 
     return XS_list, YS_list, X0, Y0, true_Y, SigmaS_list, Sigma0, beta_0
+
+
+    

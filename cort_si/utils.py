@@ -174,17 +174,19 @@ def solve_linear_inequalities_1d(psi, gamma, tol=1e-12):
 
     left = -np.inf
     right = np.inf
+    relax_tol = 1e-6
 
     for coeff, bound in zip(psi, gamma):
         if abs(coeff) <= tol:
-            if bound < -tol:
+            if bound < -relax_tol:
                 return []
             continue
 
-        value = bound / coeff
         if coeff > 0:
+            value = (bound + relax_tol) / coeff
             right = min(right, value)
         else:
+            value = (bound - relax_tol) / coeff
             left = max(left, value)
 
     if right + tol < left:
