@@ -2,6 +2,7 @@ import random
 from joblib import Parallel, delayed
 import multiprocessing
 import numpy as np
+from threadpoolctl import threadpool_limits
 
 try:
     from . import sub_prob
@@ -201,11 +202,12 @@ def SI_parallel_randj(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_lis
     S = multiprocessing.cpu_count() - 1
     z_points = np.linspace(z_min, z_max, S + 1)
     sub_intervals = [(z_points[i], z_points[i+1]) for i in range(S)]
-    parallel_results_source = Parallel(n_jobs=S)(
-        delayed(sub_prob.compute_Z1_region)(
-            X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_start, z_end
-        ) for z_start, z_end in sub_intervals
-    )
+    with threadpool_limits(limits=1, user_api='blas'):
+        parallel_results_source = Parallel(n_jobs=S)(
+            delayed(sub_prob.compute_Z1_region)(
+                X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_start, z_end
+            ) for z_start, z_end in sub_intervals
+        )
     intervals_source = [interval for sublist in parallel_results_source if sublist for interval in sublist]
     intervals_model = sub_prob.compute_Z2_region(
         X0, Y0, XS_list, YS_list, a, b, I_obs, M_obs, 
