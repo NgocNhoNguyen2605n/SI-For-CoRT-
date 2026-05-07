@@ -36,7 +36,7 @@ def solve_cort_model(X0, Y0, XS_list, YS_list, source_set, lambda0, lambdak_list
         fit_intercept=False,
         tol=tol,
         weights=w_tilde,
-        max_iter=50000,
+        max_iter=10000,
     )
     weighted_lasso.fit(X_tilde, Y_tilde)
     theta_hat = weighted_lasso.coef_
