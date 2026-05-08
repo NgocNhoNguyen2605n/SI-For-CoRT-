@@ -174,7 +174,7 @@ def solve_linear_inequalities_1d(psi, gamma, tol=1e-12):
 
     left = -np.inf
     right = np.inf
-    relax_tol = 1e-4
+    relax_tol = 1e-6
 
     for coeff, bound in zip(psi, gamma):
         if abs(coeff) <= tol:

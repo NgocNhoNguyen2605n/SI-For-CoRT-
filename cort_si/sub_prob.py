@@ -218,19 +218,27 @@ def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds,
             X0_train, a0_train, b0_train, lambda_sel, len(train_indices),
             z_min, z_max, eps=eps, tol=tol,
         )
-
+    # if source_idx == 3:
+    #     for c, d, Z in target_fold_states:
+    #         print(f"size of Z: {len(Z)}")
+    #         for l, r in Z:
+    #             print(l, r)
     intervals = []
     for c0, d0, Ztv0_region in target_fold_states:
         target_state_segment = utils.clip_interval_union(Ztv0_region, z_min, z_max, tol=tol)
         if not target_state_segment:
             continue
-
         z = target_state_segment[0][0]
         segment_right = target_state_segment[-1][1]
         while z < segment_right:
             # print(z, segment_right)
+            
             y_aug_train = a_aug_train + (b_aug_train * z)
+            print(f"Đang xử lý dữ liệu z({(z, segment_right)}) với lenght y : {len(y_aug_train)}, lenght X : {(X_aug_train.shape[0], X_aug_train.shape[1])}")
+                
             beta_aug = algorithms.solve_lasso(X_aug_train, y_aug_train, lambda_sel, verbose=False)
+            print("Đã xử lý xong!!!")
+            
             _, active_aug, sign_aug, _ = utils.construct_betaM_M_SM_Mc(beta_aug)
             _, _, ck, dk, aug_interval = compute_Ztlk_region(
                 X_aug_train, a_aug_train, b_aug_train, active_aug,
@@ -254,7 +262,7 @@ def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds,
             if not np.isfinite(right_endpoint):
                 return utils.clip_interval_union(intervals, z_min, z_max, tol=tol)
             if right_endpoint <= z + tol:
-                print(z, segment_right)
+                print(z, right_endpoint)
                 z += eps
             else:
                 z = right_endpoint + eps
@@ -280,8 +288,9 @@ def compute_Z1_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, 
                 lambda_sel, len(train_indices), z_min, z_max, eps=eps, tol=tol,
             )
         )
-    print(len(XS_list))
+    # print(len(XS_list))
     for source_idx in range(len(XS_list)):
+        # print(source_idx)
         win_regions = [
             fold_win_region(
                 source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds,
@@ -290,13 +299,13 @@ def compute_Z1_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, 
             )
             for fold_idx in range(len(folds))
         ]
-        print(source_idx)
+        
         mode = "selected" if source_idx in selected_sources else "discarded"
         source_region = utils.count_region_from_fold_wins(win_regions, majority, mode, z_min=z_min, z_max=z_max, tol=tol)
         total_region = utils.intersect_interval_unions(total_region, source_region, tol=tol)
         if not total_region:
             return []
-    print("hello")
+    # print("hello")
     return total_region
 
 

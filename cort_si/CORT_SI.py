@@ -199,7 +199,7 @@ def SI_parallel_randj(X0, Y0, XS_list, YS_list, lambda_sel, lambda0, lambdak_lis
     j = random.choice(M_obs)
     etaj, etajTy = utils.construct_test_statistic(j, X0M, Y_obs, M_obs, Y0.shape[0], Y_obs.shape[0])
     a, b = utils.calculate_a_b(etaj, Y_obs, Sigma, Y_obs.shape[0])
-    S = multiprocessing.cpu_count() - 1
+    S = 16
     z_points = np.linspace(z_min, z_max, S + 1)
     sub_intervals = [(z_points[i], z_points[i+1]) for i in range(S)]
     with threadpool_limits(limits=1, user_api='blas'):

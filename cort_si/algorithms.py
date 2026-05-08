@@ -1,5 +1,6 @@
-from skglm import WeightedLasso, Lasso
+from skglm import Lasso, WeightedLasso
 import numpy as np
+from sklearn.exceptions import ConvergenceWarning
 import warnings
 
 try:
@@ -7,15 +8,14 @@ try:
 except ImportError:  # pragma: no cover - fallback for direct script execution
     import utils
 
-warnings.filterwarnings("ignore")
-
+# warnings.filterwarnings("ignore")
 
 def _active_set_from_coef(coef):
     coef = np.asarray(coef).ravel()
     return [idx for idx, value in enumerate(coef) if value != 0]
 
 
-def solve_lasso(X, y, lam, fit_intercept=False, tol=1e-10, max_iter=10000, verbose=False, label=None):
+def solve_lasso(X, y, lam, fit_intercept=False, tol=1e-10, max_iter=50000, verbose=False, label=None):
     model = Lasso(alpha=lam, fit_intercept=fit_intercept, tol=tol, max_iter=max_iter)
     model.fit(X, np.asarray(y).ravel())
     coef = model.coef_
@@ -36,7 +36,7 @@ def solve_cort_model(X0, Y0, XS_list, YS_list, source_set, lambda0, lambdak_list
         fit_intercept=False,
         tol=tol,
         weights=w_tilde,
-        max_iter=50000,
+        max_iter=10000,
     )
     weighted_lasso.fit(X_tilde, Y_tilde)
     theta_hat = weighted_lasso.coef_
