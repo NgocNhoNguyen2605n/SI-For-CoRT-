@@ -1,4 +1,4 @@
-from skglm import Lasso, WeightedLasso
+from skglm import WeightedLasso, Lasso
 import numpy as np
 from sklearn.exceptions import ConvergenceWarning
 import warnings
@@ -8,14 +8,14 @@ try:
 except ImportError:  # pragma: no cover - fallback for direct script execution
     import utils
 
-# warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore")
 
 def _active_set_from_coef(coef):
     coef = np.asarray(coef).ravel()
     return [idx for idx, value in enumerate(coef) if value != 0]
 
 
-def solve_lasso(X, y, lam, fit_intercept=False, tol=1e-10, max_iter=50000, verbose=False, label=None):
+def solve_lasso(X, y, lam, fit_intercept=False, tol=1e-10, max_iter=10000, verbose=False, label=None):
     model = Lasso(alpha=lam, fit_intercept=fit_intercept, tol=tol, max_iter=max_iter)
     model.fit(X, np.asarray(y).ravel())
     coef = model.coef_

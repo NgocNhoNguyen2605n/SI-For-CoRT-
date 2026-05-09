@@ -76,7 +76,7 @@ def compute_Ztlk_region(X_aug_train, a_aug_train, b_aug_train, active_set, sign_
     return lasso_state_interval(X_aug_train, a_aug_train, b_aug_train, active_set, sign_vec, lambda_sel, n_aug)
 
 
-def collect_target_fold_states(X0_train, a0_train, b0_train, lambda_sel, n_train, z_min, z_max, eps=1e-3, tol=1e-10):
+def collect_target_fold_states(X0_train, a0_train, b0_train, lambda_sel, n_train, z_min, z_max, eps=1e-5, tol=1e-10):
     target_fold_states = []
     z = z_min
 
@@ -191,7 +191,7 @@ def compute_Zu_adapt_region(X_tilde, a_adapt, b_adapt, theta_hat, w_tilde, p, to
     return interval, Mu
 
 
-def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds, lambda_sel, z_min, z_max, target_fold_states=None, eps=1e-3, tol=1e-10):
+def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds, lambda_sel, z_min, z_max, target_fold_states=None, eps=1e-5, tol=1e-10):
     ns_list = [ys.shape[0] for ys in YS_list]
     source_a_blocks, target_a = utils.split_stacked_response(a, ns_list, Y0.shape[0])
     source_b_blocks, target_b = utils.split_stacked_response(b, ns_list, Y0.shape[0])
@@ -234,10 +234,10 @@ def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds,
             # print(z, segment_right)
             
             y_aug_train = a_aug_train + (b_aug_train * z)
-            print(f"Đang xử lý dữ liệu z({(z, segment_right)}) với lenght y : {len(y_aug_train)}, lenght X : {(X_aug_train.shape[0], X_aug_train.shape[1])}")
+            # print(f"Đang xử lý dữ liệu z({(z, segment_right)}) với lenght y : {len(y_aug_train)}, lenght X : {(X_aug_train.shape[0], X_aug_train.shape[1])}")
                 
             beta_aug = algorithms.solve_lasso(X_aug_train, y_aug_train, lambda_sel, verbose=False)
-            print("Đã xử lý xong!!!")
+            # print("Đã xử lý xong!!!")
             
             _, active_aug, sign_aug, _ = utils.construct_betaM_M_SM_Mc(beta_aug)
             _, _, ck, dk, aug_interval = compute_Ztlk_region(
@@ -270,7 +270,7 @@ def fold_win_region(source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds,
     return utils.clip_interval_union(intervals, z_min, z_max, tol=tol)
 
 
-def compute_Z1_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_min, z_max, eps=1e-3, tol=1e-10):
+def compute_Z1_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, z_min, z_max, eps=1e-5, tol=1e-10):
     total_region = [(z_min, z_max)]
     majority = (len(folds) + 1) // 2
     selected_sources = set(I_obs)
@@ -290,7 +290,7 @@ def compute_Z1_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, 
         )
     # print(len(XS_list))
     for source_idx in range(len(XS_list)):
-        # print(source_idx)
+        print(source_idx)
         win_regions = [
             fold_win_region(
                 source_idx, fold_idx, X0, Y0, XS_list, YS_list, a, b, folds,
@@ -309,7 +309,7 @@ def compute_Z1_region(X0, Y0, XS_list, YS_list, a, b, folds, I_obs, lambda_sel, 
     return total_region
 
 
-def compute_Z2_region(X0, Y0, XS_list, YS_list, a, b, I_obs, M_obs, Z1_region, lambda0, lambdak_list, eps=1e-3, tol=1e-10):
+def compute_Z2_region(X0, Y0, XS_list, YS_list, a, b, I_obs, M_obs, Z1_region, lambda0, lambdak_list, eps=1e-5, tol=1e-10):
     if not Z1_region:
         return []
 

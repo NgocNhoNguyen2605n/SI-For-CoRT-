@@ -127,7 +127,7 @@ def generate_data(
             mask = np.zeros(p, dtype=bool)
             mask[active_indices] = True
             
-            beta_k[mask] = 0.5 + (2 * h / p) * rng.choice([-1, 1], size=len(active_indices))
+            beta_k[mask] = 0.25 + (2 * h / p) * rng.choice([-1, 1], size=len(active_indices))
             beta_k[~mask] = 2 * h * rng.choice([-1, 1], size=np.sum(~mask))
 
         true_Yk = Xk @ beta_k
